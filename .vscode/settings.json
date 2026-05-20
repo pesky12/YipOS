@@ -4,12 +4,10 @@
   "cmake.configureOnOpen": false,
   "cmake.generator": "Ninja",
   "cmake.configureEnvironment": {
-    "VULKAN_SDK": "C:/VulkanSDK/1.4.350.0",
-    "PATH": "C:/VulkanSDK/1.4.350.0/Bin;${env:PATH}"
+    "VULKAN_SDK": "${env:VULKAN_SDK}"
   },
   "cmake.buildEnvironment": {
-    "VULKAN_SDK": "C:/VulkanSDK/1.4.350.0",
-    "PATH": "C:/VulkanSDK/1.4.350.0/Bin;${env:PATH}"
+    "VULKAN_SDK": "${env:VULKAN_SDK}"
   },
   "cmake.configureSettings": {
     "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
