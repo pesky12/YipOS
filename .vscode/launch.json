@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "YipOS: debug app",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}\\yip_os\\build_vscode_Debug\\yip_os.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}\\yip_os\\build_vscode_Debug",
+      "environment": [],
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "preLaunchTask": "YipOS: build debug"
+    },
+    {
+      "name": "YipOS: debug current build (skip build)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}\\yip_os\\build_vscode_Debug\\yip_os.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}\\yip_os\\build_vscode_Debug",
+      "environment": [],
+      "stopAtEntry": false,
+      "externalConsole": false
+    }
+  ]
+}

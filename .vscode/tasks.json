@@ -1,0 +1,88 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "YipOS: build debug",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\yipos-win.cmd",
+      "args": ["build", "Debug", "OFF"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "YipOS: run debug build",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\yipos-win.cmd",
+      "args": ["run", "Debug", "OFF"],
+      "dependsOn": ["YipOS: build debug"],
+      "dependsOrder": "sequence",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "YipOS: build release",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\yipos-win.cmd",
+      "args": ["build", "Release", "OFF"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": ["$msCompile"]
+    },
+    {
+      "label": "YipOS: run release build",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\yipos-win.cmd",
+      "args": ["run", "Release", "OFF"],
+      "dependsOn": ["YipOS: build release"],
+      "dependsOrder": "sequence",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "YipOS: clean debug build",
+      "type": "shell",
+      "command": "${workspaceFolder}\\.vscode\\yipos-win.cmd",
+      "args": ["clean", "Debug", "OFF"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}

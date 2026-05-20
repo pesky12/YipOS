@@ -8,7 +8,7 @@ yip_os/build_win/
 *.ilk
 *.pdb
 
-# Generated cache data (?)
+# Generated cache data
 yip_os/assets/cache/
 
 # Python

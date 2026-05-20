@@ -1,0 +1,20 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/yip_os",
+  "cmake.buildDirectory": "${workspaceFolder}/yip_os/build_vscode_${buildType}",
+  "cmake.configureOnOpen": false,
+  "cmake.generator": "Ninja",
+  "cmake.configureEnvironment": {
+    "VULKAN_SDK": "C:/VulkanSDK/1.4.350.0",
+    "PATH": "C:/VulkanSDK/1.4.350.0/Bin;${env:PATH}"
+  },
+  "cmake.buildEnvironment": {
+    "VULKAN_SDK": "C:/VulkanSDK/1.4.350.0",
+    "PATH": "C:/VulkanSDK/1.4.350.0/Bin;${env:PATH}"
+  },
+  "cmake.configureSettings": {
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+    "GGML_CCACHE": "OFF",
+    "YIPOS_HAS_OPENVR": "OFF"
+  },
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+}
