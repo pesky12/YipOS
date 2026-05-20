@@ -17,6 +17,8 @@ Requires the PDA ROM atlas glyphs from generate_pda_rom.py.
 import argparse
 import os
 import shutil
+import sys
+from functools import partial
 
 from PIL import Image
 
@@ -98,6 +100,7 @@ ZONE_ROWS = [
 ]
 
 # Home screen tile labels
+HOME_PAGES = 2
 TILE_COLS = 5
 TILE_ROWS = 3
 TILE_LABELS = [
@@ -112,9 +115,77 @@ TILE_LABELS_P2 = [
     ["-----", "-----", "-----", "-----", "-----"],
 ]
 CHARS_PER_TILE = COLS // TILE_COLS  # 8
+HOME_PAGE_SLOT_COUNT = TILE_ROWS * TILE_COLS
+DEFAULT_HOME_VISIBLE_LABELS = [
+    label
+    for row in (TILE_LABELS + TILE_LABELS_P2)
+    for label in row
+    if label[0] != '-'
+]
+# Default home layouts (used when no --home-sections argument provided)
+DEFAULT_HOME_LAYOUTS = [TILE_LABELS, TILE_LABELS_P2]
 # Column centers for even spacing across 40 cols (contact grid alignment)
 TILE_CENTERS = [(2 * i + 1) * (COLS // (TILE_COLS * 2)) for i in range(TILE_COLS)]
 # → [4, 12, 20, 28, 36]
+
+
+def _configure_console_output():
+    """Avoid crashes when the host console encoding cannot print Unicode glyphs."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None or not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(errors="replace")
+        except Exception:
+            pass
+
+
+def parse_home_sections_arg(value):
+    """Parse visible home-section labels from a comma-separated argument."""
+    if value is None:
+        return list(DEFAULT_HOME_VISIBLE_LABELS)
+
+    requested = [item.strip() for item in value.split(",") if item.strip()]
+    if not requested:
+        return list(DEFAULT_HOME_VISIBLE_LABELS)
+
+    # Normalize for comparison (labels are uppercase in TILE_LABELS)
+    canonical_set = set(DEFAULT_HOME_VISIBLE_LABELS)
+    requested_set = set(requested)
+    unknown = requested_set - canonical_set
+    if unknown:
+        raise ValueError(f"Unknown home section labels: {', '.join(sorted(unknown))}")
+
+    # Return in canonical order, preserving original case
+    return [label for label in DEFAULT_HOME_VISIBLE_LABELS if label in requested_set]
+
+
+def build_home_layouts(visible_labels):
+    """Compact visible labels into the fixed home atlas page slots."""
+    if not visible_labels:
+        raise ValueError("At least one home section must be visible")
+
+    if len(visible_labels) > HOME_PAGES * HOME_PAGE_SLOT_COUNT:
+        raise ValueError(
+            f"Too many home sections ({len(visible_labels)}); max is {HOME_PAGES * HOME_PAGE_SLOT_COUNT}"
+        )
+
+    layouts = []
+    index = 0
+    for _ in range(HOME_PAGES):
+        page = []
+        for _ in range(TILE_ROWS):
+            row = []
+            for _ in range(TILE_COLS):
+                if index < len(visible_labels):
+                    row.append(visible_labels[index])
+                    index += 1
+                else:
+                    row.append("-----")
+            page.append(row)
+        layouts.append(page)
+    return layouts
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +286,17 @@ class MacroScreenBuffer:
 # Screen layout definitions
 # ---------------------------------------------------------------------------
 
-def layout_home(buf):
-    """Home screen: borders + title + tile labels."""
+def layout_home(buf, home_layouts=None):
+    """Home screen: borders + title + tile labels.
+
+    Args:
+        buf: MacroScreenBuffer to render into
+        home_layouts: List of 2 page layouts (each is TILE_ROWS x TILE_COLS).
+                      Defaults to DEFAULT_HOME_LAYOUTS if not provided.
+    """
+    if home_layouts is None:
+        home_layouts = DEFAULT_HOME_LAYOUTS
+
     buf.put_frame("YIP OS")
 
     # Tile labels at zone-center rows, centered on contact grid columns.
@@ -225,7 +305,7 @@ def layout_home(buf):
         row = round(ZONE_ROWS[ty])
         buf.put_glyph(0, row, G_VLINE)
         for tx in range(TILE_COLS):
-            label = TILE_LABELS[ty][tx]
+            label = home_layouts[0][ty][tx]
             is_active = label[0] != '-'
             display_label = label if is_active else label.lstrip('-')
             center = TILE_CENTERS[tx]
@@ -236,15 +316,24 @@ def layout_home(buf):
     buf.put_status_bar()
 
 
-def layout_home_p2(buf):
-    """Home screen page 2: borders + title + page 2 tile labels."""
+def layout_home_p2(buf, home_layouts=None):
+    """Home screen page 2: borders + title + page 2 tile labels.
+
+    Args:
+        buf: MacroScreenBuffer to render into
+        home_layouts: List of 2 page layouts (each is TILE_ROWS x TILE_COLS).
+                      Defaults to DEFAULT_HOME_LAYOUTS if not provided.
+    """
+    if home_layouts is None:
+        home_layouts = DEFAULT_HOME_LAYOUTS
+
     buf.put_frame("YIP OS")
 
     for ty in range(TILE_ROWS):
         row = round(ZONE_ROWS[ty])
         buf.put_glyph(0, row, G_VLINE)
         for tx in range(TILE_COLS):
-            label = TILE_LABELS_P2[ty][tx]
+            label = home_layouts[1][ty][tx]
             is_active = label[0] != '-'
             display_label = label if is_active else label.lstrip('-')
             center = TILE_CENTERS[tx]
@@ -1069,10 +1158,14 @@ def render_buffer_to_image(buf, rom_glyphs):
 # ---------------------------------------------------------------------------
 
 def main():
+    _configure_console_output()
+
     parser = argparse.ArgumentParser(
         description="Generate macro glyph atlas for Williams Tube PDA")
     parser.add_argument("--output", "-o", default="WilliamsTube_MacroAtlas.png",
                         help="Output PNG filename (default: WilliamsTube_MacroAtlas.png)")
+    parser.add_argument("--home-sections",
+                        help="Comma-separated visible home section labels. Hidden sections are compacted.")
     parser.add_argument("--no-copy", action="store_true",
                         help="Don't auto-copy to Unity project textures directory")
     parser.add_argument("--preview", action="store_true",
@@ -1080,6 +1173,22 @@ def main():
     args = parser.parse_args()
 
     output_path = os.path.join(SCRIPT_DIR, args.output)
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    try:
+        visible_home_labels = parse_home_sections_arg(args.home_sections)
+        home_layouts = build_home_layouts(visible_home_labels)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    print(f"Home layout labels: {', '.join(visible_home_labels)}")
+
+    # Build screen layouts dict with bound home functions
+    screen_layouts = dict(SCREEN_LAYOUTS)
+    screen_layouts[0] = ("HOME", partial(layout_home, home_layouts=home_layouts))
+    screen_layouts[30] = ("HOME P2", partial(layout_home_p2, home_layouts=home_layouts))
 
     print("Loading ROM glyphs...")
     rom_glyphs = build_rom_glyphs()
@@ -1114,7 +1223,7 @@ def main():
     print(f"\nAtlas: {ATLAS_W}x{ATLAS_H} ({MACRO_GRID_COLS}x{MACRO_GRID_ROWS} grid, "
           f"{MACRO_CELL_W}x{MACRO_CELL_H} per cell)")
 
-    for idx, (name, layout_fn) in sorted(SCREEN_LAYOUTS.items()):
+    for idx, (name, layout_fn) in sorted(screen_layouts.items()):
         print(f"\n  [{idx}] {name}...")
         buf = MacroScreenBuffer()
         layout_fn(buf)

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <array>
 #include <string>
+#include <vector>
 
 namespace YipOS {
 namespace Glyphs {
@@ -36,6 +37,54 @@ constexpr TileLabel TILE_LABELS[HOME_PAGES][TILE_ROWS][TILE_COLS] = {
      {{"ULTRA"}, {"-----"}, {"-----"}, {"-----"}, {"-----"}},
      {{"-----"}, {"-----"}, {"-----"}, {"-----"}, {"-----"}}},
 };
+// clang-format on
+
+constexpr int HOME_PAGE_SLOT_COUNT = TILE_ROWS * TILE_COLS;
+
+// clang-format off, yipee
+inline std::vector<std::string> GetDefaultHomeSectionLabels() {
+    std::vector<std::string> labels;
+    labels.reserve(HOME_PAGES * HOME_PAGE_SLOT_COUNT);
+    for (int page = 0; page < HOME_PAGES; ++page) {
+        for (int row = 0; row < TILE_ROWS; ++row) {
+            for (int col = 0; col < TILE_COLS; ++col) {
+                const char* label = TILE_LABELS[page][row][col].text;
+                if (label[0] != '-') {
+                    labels.emplace_back(label);
+                }
+            }
+        }
+    }
+    return labels;
+}
+
+inline std::string GetHomeSectionStateKey(const std::string& label) {
+    return "home.section." + label;
+}
+
+inline std::vector<std::string> ParseHomeSectionLabels(const std::string& serialized) {
+    std::vector<std::string> requested;
+    size_t start = 0;
+    while (start < serialized.size()) {
+        size_t end = serialized.find(',', start);
+        if (end == std::string::npos) end = serialized.size();
+        std::string label = serialized.substr(start, end - start);
+        while (!label.empty() && label.front() == ' ') label.erase(label.begin());
+        while (!label.empty() && label.back() == ' ') label.pop_back();
+        if (!label.empty()) requested.push_back(label);
+        start = end + 1;
+    }
+
+    auto canonical = GetDefaultHomeSectionLabels();
+    std::vector<std::string> parsed;
+    parsed.reserve(canonical.size());
+    for (const auto& label : canonical) {
+        if (std::find(requested.begin(), requested.end(), label) != requested.end()) {
+            parsed.push_back(label);
+        }
+    }
+    return parsed;
+}
 // clang-format on
 
 // Touch zone centers as integer rows (must match macro atlas layout)

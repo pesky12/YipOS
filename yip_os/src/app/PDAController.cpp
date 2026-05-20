@@ -169,6 +169,10 @@ float PDAController::GetRefreshInterval() const {
 }
 
 void PDAController::StartRender(Screen* screen) {
+    if (auto* home = dynamic_cast<HomeScreen*>(screen)) {
+        home->SyncLayoutForRender();
+    }
+
     display_.CancelBuffered();
     display_.ClearScreen();
 
@@ -401,6 +405,9 @@ void PDAController::MaybeRefresh() {
     if (!screen) return;
     // Screens that manage their own updates (e.g. CC) skip the macro re-stamp cycle
     if (screen->skip_clock) return;
+    if (auto* home = dynamic_cast<HomeScreen*>(screen)) {
+        home->SyncLayoutForRender();
+    }
     float interval = GetRefreshInterval();
     if (interval <= 0) return;
     double now = MonotonicNow();

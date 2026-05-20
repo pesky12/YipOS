@@ -1,18 +1,80 @@
 #include "HomeScreen.hpp"
 #include "app/PDAController.hpp"
 #include "app/PDADisplay.hpp"
+#include "core/Config.hpp"
 #include "core/Logger.hpp"
-#include <cstring>
 #include <cstdio>
 
 namespace YipOS {
 
 using namespace Glyphs;
 
+namespace {
+
+const std::string* GetPageLabel(const std::vector<std::string>& labels, int page, int tx, int ty) {
+    size_t index = static_cast<size_t>(page) * HOME_PAGE_SLOT_COUNT +
+                   static_cast<size_t>(ty) * TILE_COLS +
+                   static_cast<size_t>(tx);
+    if (index >= labels.size()) return nullptr;
+    return &labels[index];
+}
+
+} // namespace
+
 HomeScreen::HomeScreen(PDAController& pda) : Screen(pda) {
     name = "HOME";
-    macro_index = 0;
     for (auto& row : tile_highlighted_) row.fill(false);
+    SyncLayoutForRender();
+}
+
+void HomeScreen::SyncLayoutForRender() {
+    RefreshVisibleTiles();
+}
+
+void HomeScreen::RefreshVisibleTiles() {
+    std::vector<std::string> next_visible;
+    auto& config = pda_.GetConfig();
+
+    // Use baked labels if enabled, otherwise use default visible sections
+    if (config.GetState("home.baked.enabled", "0") == "1") {
+        auto baked = ParseHomeSectionLabels(config.GetState("home.baked.labels"));
+        if (!baked.empty()) {
+            next_visible = baked;
+        } else {
+            // Fallback to default if baked labels are empty
+            auto labels = GetDefaultHomeSectionLabels();
+            for (const auto& label : labels) {
+                if (config.GetState(GetHomeSectionStateKey(label), "1") != "0") {
+                    next_visible.push_back(label);
+                }
+            }
+        }
+    } else {
+        auto labels = GetDefaultHomeSectionLabels();
+        for (const auto& label : labels) {
+            if (config.GetState(GetHomeSectionStateKey(label), "1") != "0") {
+                next_visible.push_back(label);
+            }
+        }
+    }
+
+    visible_labels_ = std::move(next_visible);
+
+    int max_page = std::max(0, GetPageCount() - 1);
+    if (page_ > max_page) {
+        page_ = max_page;
+    }
+
+    macro_index = (page_ == 0) ? 0 : 30;
+}
+
+const std::string* HomeScreen::GetVisibleLabel(int tx, int ty) const {
+    return GetPageLabel(visible_labels_, page_, tx, ty);
+}
+
+int HomeScreen::GetPageCount() const {
+    if (visible_labels_.empty()) return 1;
+    return static_cast<int>((visible_labels_.size() + HOME_PAGE_SLOT_COUNT - 1) / HOME_PAGE_SLOT_COUNT);
 }
 
 void HomeScreen::Render() {
@@ -71,31 +133,38 @@ void HomeScreen::RenderDynamic() {
 }
 
 void HomeScreen::RenderPageIndicators() {
-    // Page indicator in status bar
+    int page_count = GetPageCount();
+
     char pos[8];
-    std::snprintf(pos, sizeof(pos), "%d/%d", page_ + 1, HOME_PAGES);
+    std::snprintf(pos, sizeof(pos), "%d/%d", page_ + 1, page_count);
     display_.WriteText(5, 7, pos);
 
-    // Up/down arrows on left border
-    if (page_ > 0) {
-        display_.WriteGlyph(0, 3, G_UP);
-    }
-    if (page_ < HOME_PAGES - 1) {
-        display_.WriteGlyph(0, 5, G_DOWN);
-    }
+    display_.WriteGlyph(0, 3, page_ > 0 ? G_UP : G_VLINE);
+    display_.WriteGlyph(0, 5, page_ < page_count - 1 ? G_DOWN : G_VLINE);
 }
 
 void HomeScreen::WriteTile(int tx, int ty) {
-    const char* label = TILE_LABELS[page_][ty][tx].text;
-    bool is_active = label[0] != '-';
+    // Use visible labels when baked atlas is enabled, otherwise use TILE_LABELS
+    const std::string* dynamic_label = GetVisibleLabel(tx, ty);
+    const char* static_label = TILE_LABELS[page_][ty][tx].text;
+    
+    bool is_active = dynamic_label != nullptr;
     bool inverted = is_active && !tile_highlighted_[ty][tx];
-
-    // VRCX tile (1,0) gets "*" suffix when unseen notifications exist (page 0 only)
+    
+    // Use dynamic label for display when available
     std::string label_str;
-    if (page_ == 0 && ty == 1 && tx == 0 && pda_.HasUnseenNotifs()) {
-        label_str = std::string(label) + "*";
+    if (dynamic_label) {
+        label_str = *dynamic_label;
+        // VRCX label gets "*" suffix when unseen notifications exist (page 0 only)
+        if (*dynamic_label == "VRCX" && page_ == 0 && pda_.HasUnseenNotifs()) {
+            label_str += "*";
+        }
     } else {
-        label_str = label;
+        label_str = static_label;
+        // VRCX tile (1,0) gets "*" suffix when unseen notifications exist (page 0 only)
+        if (page_ == 0 && ty == 1 && tx == 0 && pda_.HasUnseenNotifs()) {
+            label_str = std::string(static_label) + "*";
+        }
     }
 
     int len = static_cast<int>(label_str.size());
@@ -114,6 +183,8 @@ void HomeScreen::WriteTile(int tx, int ty) {
 }
 
 bool HomeScreen::OnInput(const std::string& key) {
+    SyncLayoutForRender();
+
     // ML = page up
     if (key == "ML" && page_ > 0) {
         page_--;
@@ -123,7 +194,7 @@ bool HomeScreen::OnInput(const std::string& key) {
         return true;
     }
     // BL = page down
-    if (key == "BL" && page_ < HOME_PAGES - 1) {
+    if (key == "BL" && page_ < GetPageCount() - 1) {
         page_++;
         macro_index = (page_ == 0) ? 0 : 30;
         for (auto& row : tile_highlighted_) row.fill(false);
@@ -136,8 +207,8 @@ bool HomeScreen::OnInput(const std::string& key) {
         int ty = key[1] - '1';
 
         if (tx >= 0 && tx < TILE_COLS && ty >= 0 && ty < TILE_ROWS) {
-            const char* label = TILE_LABELS[page_][ty][tx].text;
-            if (label[0] == '-') {
+            const std::string* label = GetVisibleLabel(tx, ty);
+            if (!label) {
                 Logger::Debug("Tile (" + std::to_string(tx) + "," + std::to_string(ty) + ") is empty");
                 return true;
             }
@@ -147,9 +218,9 @@ bool HomeScreen::OnInput(const std::string& key) {
             tile_highlighted_[ty][tx] = true;
             WriteTile(tx, ty);
             Logger::Info("Tile (" + std::to_string(tx) + "," + std::to_string(ty) +
-                        ") '" + label + "' -> navigating");
+                        ") '" + *label + "' -> navigating");
 
-            pda_.SetPendingNavigate(label);
+            pda_.SetPendingNavigate(*label);
             return true;
         }
     }
