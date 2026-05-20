@@ -1,5 +1,15 @@
 # Build artifacts
 yip_os/build/
+build/
+yip_os/build_vscode_*/
+yip_os/build_win/
+
+# Windows build artifacts
+*.ilk
+*.pdb
+
+# Generated cache data (?)
+yip_os/assets/cache/
 
 # Python
 __pycache__/
