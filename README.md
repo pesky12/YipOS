@@ -1,3 +1,5 @@
+> Hiii!! Hello!! Personal fork with custom styling and QoL tweaks. Some of this code might be silly. Original: [InconsolableCellist/YipOS](https://github.com/InconsolableCellist/YipOS). If you find something worth pulling a PR for, let me know on Discord (pesky12)!!
+
 - [Yip OS](#yip-os)
   - [What Is It?](#what-is-it)
   - [How It Works](#how-it-works)
